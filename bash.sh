@@ -4,6 +4,17 @@
 # Author: AI Assistant
 # Description: Automates tshark extractions from PCAP files with organized output
 
+# Color definitions
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
 # Configuration variables
 BASE_OUT="$HOME/Documents/Pcap_Extracts/$(date +%Y%m%d_%H%M%S)"
 TOOLS_ROOT="/tmp/tools"
@@ -41,6 +52,47 @@ declare -A REPOS=(
     ["john"]="https://github.com/openwall/john"
 )
 
+# Function to print colored header
+print_header() {
+    echo -e "${CYAN}${BOLD}"
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║                    PCAP Auto Extractor                        ║"
+    echo "║          Advanced Terminal Automation for PCAP Analysis        ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+}
+
+# Function to print section header
+print_section() {
+    echo -e "${BLUE}${BOLD}═══ $1 ═══${NC}"
+    echo
+}
+
+# Function to print success message
+print_success() {
+    echo -e "${GREEN}[✓]${NC} $1"
+}
+
+# Function to print error message
+print_error() {
+    echo -e "${RED}[✗]${NC} $1"
+}
+
+# Function to print warning message
+print_warning() {
+    echo -e "${YELLOW}[!]${NC} $1"
+}
+
+# Function to print info message
+print_info() {
+    echo -e "${CYAN}[i]${NC} $1"
+}
+
+# Function to print running message
+print_running() {
+    echo -e "${PURPLE}[→]${NC} $1"
+}
+
 # Function to log messages
 log() {
     local message="$1"
@@ -74,9 +126,9 @@ check_dependencies() {
     
     if [ ${#missing[@]} -gt 0 ]; then
         log_error "Missing required dependencies: ${missing[*]}"
-        echo "Please install missing dependencies:"
-        echo "  Ubuntu/Debian: sudo apt install ${missing[*]}"
-        echo "  macOS: brew install ${missing[*]}"
+        echo -e "${RED}Please install missing dependencies:${NC}"
+        echo -e "  ${YELLOW}Ubuntu/Debian:${NC} sudo apt install ${missing[*]}"
+        echo -e "  ${YELLOW}macOS:${NC} brew install ${missing[*]}"
         exit 1
     fi
     
@@ -85,22 +137,23 @@ check_dependencies() {
         log "Some features may not work without these tools."
     fi
     
+    print_success "All required dependencies are available."
     log "All required dependencies are available."
 }
 
 # Function to display usage
 show_usage() {
-    echo "Usage: $0 <pcap-file> [options]"
+    echo -e "${CYAN}${BOLD}Usage:${NC} $0 <pcap-file> [options]"
     echo
-    echo "Options:"
-    echo "  --parallel N      Run up to N extractors in parallel (default: 1)"
-    echo "  --dry-run         Show commands that would be executed without running them"
-    echo "  --json-report     Generate a machine-readable JSON summary report"
-    echo "  --tools-root DIR  Set the root directory for cloned tools (default: /tmp/tools)"
+    echo -e "${YELLOW}Options:${NC}"
+    echo -e "  ${GREEN}--parallel N${NC}      Run up to N extractors in parallel (default: 1)"
+    echo -e "  ${GREEN}--dry-run${NC}         Show commands that would be executed without running them"
+    echo -e "  ${GREEN}--json-report${NC}     Generate a machine-readable JSON summary report"
+    echo -e "  ${GREEN}--tools-root DIR${NC}  Set the root directory for cloned tools (default: /tmp/tools)"
     echo
-    echo "Example:"
-    echo "  $0 capture.pcap"
-    echo "  $0 capture.pcap --parallel 4 --json-report"
+    echo -e "${YELLOW}Example:${NC}"
+    echo -e "  $0 capture.pcap"
+    echo -e "  $0 capture.pcap --parallel 4 --json-report"
 }
 
 # Function to parse command line arguments
@@ -171,10 +224,11 @@ run_and_save() {
     local output_file="$2"
     local description="$3"
     
+    print_running "Running: $cmd"
     log "Running: $cmd"
     
     if [ "$DRY_RUN" = true ]; then
-        echo "[DRY RUN] Would run: $cmd > $output_file"
+        echo -e "${YELLOW}[DRY RUN]${NC} Would run: $cmd > $output_file"
         return 0
     fi
     
@@ -187,23 +241,25 @@ run_and_save() {
             # Ensure output directory exists
             mkdir -p "$(dirname "$output_file")"
             mv "$tmpfile" "$output_file"
+            print_success "Saved -> $output_file"
             log "[+] Saved -> $output_file"
             return 0
         else
             rm -f "$tmpfile"
+            print_warning "No $description found"
             log "[!] No $description found"
             return 1
         fi
     else
         local exit_code=$?
         rm -f "$tmpfile"
+        print_error "Command failed with exit code $exit_code"
         log_error "Command failed with exit code $exit_code: $cmd"
         return $exit_code
     fi
 }
 
 # Extractor functions
-
 # Meta extractors
 extract_interfaces() {
     run_and_save "tshark -D" "$BASE_OUT/meta/interfaces.txt" "interface list"
@@ -243,10 +299,11 @@ extract_http_cookies() {
 }
 
 extract_http_objects() {
+    print_info "Exporting HTTP objects..."
     log "Exporting HTTP objects..."
     
     if [ "$DRY_RUN" = true ]; then
-        echo "[DRY RUN] Would run: tshark -r \"$PCAP_FILE\" --export-objects http,\"$BASE_OUT/files/http\""
+        echo -e "${YELLOW}[DRY RUN]${NC} Would run: tshark -r \"$PCAP_FILE\" --export-objects http,\"$BASE_OUT/files/http\""
         return 0
     fi
     
@@ -259,13 +316,16 @@ extract_http_objects() {
         
         if [ "$count_after" -gt "$count_before" ]; then
             local exported=$((count_after - count_before))
+            print_success "Saved -> $exported HTTP objects to $BASE_OUT/files/http"
             log "[+] Saved -> $exported HTTP objects to $BASE_OUT/files/http"
             return 0
         else
+            print_warning "No HTTP objects found"
             log "[!] No HTTP objects found"
             return 1
         fi
     else
+        print_error "Failed to export HTTP objects"
         log_error "Failed to export HTTP objects"
         return 1
     fi
@@ -311,10 +371,11 @@ extract_kerberos_ciphers() {
 }
 
 extract_asrep_candidates() {
+    print_info "Building AS-REP candidates..."
     log "Building AS-REP candidates..."
     
     if [ "$DRY_RUN" = true ]; then
-        echo "[DRY RUN] Would build AS-REP candidates from Kerberos data"
+        echo -e "${YELLOW}[DRY RUN]${NC} Would build AS-REP candidates from Kerberos data"
         return 0
     fi
     
@@ -332,15 +393,18 @@ extract_asrep_candidates() {
             }' > "$BASE_OUT/kerberos/asrep_candidates.txt"
             
             rm -f "$tmpfile"
+            print_success "Saved -> $BASE_OUT/kerberos/asrep_candidates.txt"
             log "[+] Saved -> $BASE_OUT/kerberos/asrep_candidates.txt"
             return 0
         else
             rm -f "$tmpfile"
+            print_warning "No Kerberos data found for AS-REP candidates"
             log "[!] No Kerberos data found for AS-REP candidates"
             return 1
         fi
     else
         rm -f "$tmpfile"
+        print_error "Failed to extract Kerberos data for AS-REP candidates"
         log_error "Failed to extract Kerberos data for AS-REP candidates"
         return 1
     fi
@@ -366,15 +430,17 @@ extract_tls_ja3() {
 
 # DNS exfil detection
 detect_dns_exfil() {
+    print_info "Detecting DNS exfiltration heuristics..."
     log "Detecting DNS exfiltration heuristics..."
     
     if [ "$DRY_RUN" = true ]; then
-        echo "[DRY RUN] Would run DNS exfiltration detection"
+        echo -e "${YELLOW}[DRY RUN]${NC} Would run DNS exfiltration detection"
         return 0
     fi
     
     # Check if we have DNS data
     if [ ! -f "$BASE_OUT/dns/all_qnames.txt" ]; then
+        print_warning "No DNS QNames found, skipping exfil detection"
         log "[!] No DNS QNames found, skipping exfil detection"
         return 1
     fi
@@ -396,10 +462,12 @@ detect_dns_exfil() {
     
     # Check if we found anything suspicious
     if [ -s "$exfil_file" ]; then
+        print_success "Saved -> $exfil_file"
         log "[+] Saved -> $exfil_file"
         return 0
     else
         rm -f "$exfil_file"
+        print_warning "No DNS exfiltration indicators found"
         log "[!] No DNS exfiltration indicators found"
         return 1
     fi
@@ -408,10 +476,12 @@ detect_dns_exfil() {
 # Chained analysis functions
 analyze_http_hosts() {
     if [ ! -f "$BASE_OUT/http/hosts.txt" ]; then
+        print_warning "No HTTP hosts found, skipping detailed analysis"
         log "[!] No HTTP hosts found, skipping detailed analysis"
         return 1
     fi
     
+    print_info "Performing detailed analysis of HTTP hosts..."
     log "Performing detailed analysis of HTTP hosts..."
     
     local hosts
@@ -427,8 +497,8 @@ analyze_http_hosts() {
         # Pretty print URIs if file exists and is not empty
         if [ -f "$output_file" ] && [ -s "$output_file" ]; then
             echo
-            echo "URIs for $host:"
-            echo "---------------"
+            echo -e "${CYAN}URIs for ${BOLD}$host${NC}${CYAN}:${NC}"
+            echo -e "${BLUE}---------------${NC}"
             sed 's/^/→ /' "$output_file"
         fi
     done
@@ -436,20 +506,24 @@ analyze_http_hosts() {
 
 analyze_kerberos() {
     if [ ! -f "$BASE_OUT/kerberos/users_realms.tsv" ] || [ ! -f "$BASE_OUT/kerberos/ciphers_all.txt" ]; then
+        print_warning "No Kerberos data found, skipping AS-REP analysis"
         log "[!] No Kerberos data found, skipping AS-REP analysis"
         return 1
     fi
     
+    print_info "Analyzing Kerberos data for AS-REP candidates..."
     log "Analyzing Kerberos data for AS-REP candidates..."
     extract_asrep_candidates
 }
 
 analyze_post_bodies() {
     if [ ! -f "$BASE_OUT/http/post_bodies.txt" ]; then
+        print_warning "No HTTP POST bodies found, skipping credential analysis"
         log "[!] No HTTP POST bodies found, skipping credential analysis"
         return 1
     fi
     
+    print_info "Analyzing POST bodies for potential credentials..."
     log "Analyzing POST bodies for potential credentials..."
     
     local creds_file="$BASE_OUT/creds/post_body_creds.txt"
@@ -458,10 +532,12 @@ analyze_post_bodies() {
     grep -iE 'password|pass|pwd' "$BASE_OUT/http/post_bodies.txt" > "$creds_file"
     
     if [ -s "$creds_file" ]; then
+        print_success "Saved -> $creds_file"
         log "[+] Saved -> $creds_file"
         return 0
     else
         rm -f "$creds_file"
+        print_warning "No credentials found in POST bodies"
         log "[!] No credentials found in POST bodies"
         return 1
     fi
@@ -469,6 +545,7 @@ analyze_post_bodies() {
 
 # Function to run all extractors
 run_all_extractors() {
+    print_info "Running all extractors..."
     log "Running all extractors..."
     
     # Meta extractors
@@ -516,12 +593,14 @@ run_all_extractors() {
     analyze_kerberos
     analyze_post_bodies
     
+    print_success "All extractors completed."
     log "All extractors completed."
     
     # Ask user if they want to return to menu or exit
     echo
     read -p "Extraction complete. Return to menu? [Y/n] " ans
     if [[ "$ans" =~ ^[Nn]$ ]]; then
+        print_info "User chose to exit after extraction"
         log "User chose to exit after extraction"
         exit 0
     fi
@@ -530,50 +609,52 @@ run_all_extractors() {
 # Function to display the main menu
 show_menu() {
     echo
-    echo "PCAP Auto Extractor - Main Menu"
-    echo "==============================="
-    echo "1. Extract ALL (safe, modular)"
-    echo "2. Run a specific extractor"
-    echo "3. GitHub Tools"
-    echo "4. Show Summary"
-    echo "5. Exit"
+    echo -e "${CYAN}${BOLD}═══════════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}${BOLD}║                         PCAP Auto Extractor - Main Menu                  ║${NC}"
+    echo -e "${CYAN}${BOLD}═══════════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${GREEN}1.${NC} Extract ALL (safe, modular)"
+    echo -e "${GREEN}2.${NC} Run a specific extractor"
+    echo -e "${GREEN}3.${NC} GitHub Tools"
+    echo -e "${GREEN}4.${NC} Show Summary"
+    echo -e "${RED}5.${NC} Exit"
     echo
 }
 
 # Function to display the extractor menu
 show_extractor_menu() {
     echo
-    echo "Select an extractor to run:"
-    echo "==========================="
-    echo "1. Meta - Interface listing"
-    echo "2. Meta - Link types"
-    echo "3. Meta - PCAP stats"
-    echo "4. Meta - Kerberos fields"
-    echo "5. HTTP - Requests"
-    echo "6. HTTP - Hosts"
-    echo "7. HTTP - POST bodies"
-    echo "8. HTTP - Auth headers"
-    echo "9. HTTP - Cookies"
-    echo "10. HTTP - Export objects"
-    echo "11. DNS - Queries"
-    echo "12. DNS - Answers"
-    echo "13. DNS - TXT records"
-    echo "14. DNS - All QNames"
-    echo "15. TCP - SYN+ACK ports"
-    echo "16. TCP - Conversations"
-    echo "17. TCP - IP conversations"
-    echo "18. Kerberos - Users and realms"
-    echo "19. Kerberos - Ciphers"
-    echo "20. Kerberos - AS-REP candidates"
-    echo "21. Credentials - FTP commands"
-    echo "22. Credentials - FTP credentials"
-    echo "23. Credentials - SMTP subjects"
-    echo "24. TLS - JA3 fingerprints"
-    echo "25. DNS - Exfiltration detection"
-    echo "26. Chained - HTTP hosts analysis"
-    echo "27. Chained - Kerberos analysis"
-    echo "28. Chained - POST bodies analysis"
-    echo "29. Back to main menu"
+    echo -e "${CYAN}${BOLD}═══════════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}${BOLD}║                      Select an extractor to run:                       ║${NC}"
+    echo -e "${CYAN}${BOLD}═══════════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${GREEN} 1.${NC} Meta - Interface listing"
+    echo -e "${GREEN} 2.${NC} Meta - Link types"
+    echo -e "${GREEN} 3.${NC} Meta - PCAP stats"
+    echo -e "${GREEN} 4.${NC} Meta - Kerberos fields"
+    echo -e "${YELLOW} 5.${NC} HTTP - Requests"
+    echo -e "${YELLOW} 6.${NC} HTTP - Hosts"
+    echo -e "${YELLOW} 7.${NC} HTTP - POST bodies"
+    echo -e "${YELLOW} 8.${NC} HTTP - Auth headers"
+    echo -e "${YELLOW} 9.${NC} HTTP - Cookies"
+    echo -e "${YELLOW}10.${NC} HTTP - Export objects"
+    echo -e "${BLUE}11.${NC} DNS - Queries"
+    echo -e "${BLUE}12.${NC} DNS - Answers"
+    echo -e "${BLUE}13.${NC} DNS - TXT records"
+    echo -e "${BLUE}14.${NC} DNS - All QNames"
+    echo -e "${PURPLE}15.${NC} TCP - SYN+ACK ports"
+    echo -e "${PURPLE}16.${NC} TCP - Conversations"
+    echo -e "${PURPLE}17.${NC} TCP - IP conversations"
+    echo -e "${RED}18.${NC} Kerberos - Users and realms"
+    echo -e "${RED}19.${NC} Kerberos - Ciphers"
+    echo -e "${RED}20.${NC} Kerberos - AS-REP candidates"
+    echo -e "${RED}21.${NC} Credentials - FTP commands"
+    echo -e "${RED}22.${NC} Credentials - FTP credentials"
+    echo -e "${RED}23.${NC} Credentials - SMTP subjects"
+    echo -e "${PURPLE}24.${NC} TLS - JA3 fingerprints"
+    echo -e "${BLUE}25.${NC} DNS - Exfiltration detection"
+    echo -e "${YELLOW}26.${NC} Chained - HTTP hosts analysis"
+    echo -e "${RED}27.${NC} Chained - Kerberos analysis"
+    echo -e "${YELLOW}28.${NC} Chained - POST bodies analysis"
+    echo -e "${WHITE}29.${NC} Back to main menu"
     echo
 }
 
@@ -613,7 +694,7 @@ run_specific_extractor() {
             27) analyze_kerberos ;;
             28) analyze_post_bodies ;;
             29) break ;;
-            *) echo "Invalid option, please try again." ;;
+            *) echo -e "${RED}Invalid option, please try again.${NC}" ;;
         esac
         
         echo
@@ -625,16 +706,17 @@ run_specific_extractor() {
 # Function to show GitHub tools menu
 show_github_menu() {
     echo
-    echo "GitHub Tools Menu"
-    echo "================="
+    echo -e "${CYAN}${BOLD}═══════════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}${BOLD}║                            GitHub Tools Menu                           ║${NC}"
+    echo -e "${CYAN}${BOLD}═══════════════════════════════════════════════════════════════════════${NC}"
     
     local i=1
     for repo in "${!REPOS[@]}"; do
-        echo "$i. $repo (${REPOS[$repo]})"
+        echo -e "${GREEN}$i.${NC} $repo (${REPOS[$repo]})"
         ((i++))
     done
     
-    echo "$i. Back to main menu"
+    echo -e "${WHITE}$i.${NC} Back to main menu"
     echo
 }
 
@@ -643,10 +725,11 @@ clone_and_run_tool() {
     local repo_name="$1"
     local repo_url="${REPOS[$repo_name]}"
     
+    print_info "Cloning $repo_name..."
     log "Cloning $repo_name..."
     
     if [ "$DRY_RUN" = true ]; then
-        echo "[DRY RUN] Would clone $repo_url to $TOOLS_ROOT/$repo_name"
+        echo -e "${YELLOW}[DRY RUN]${NC} Would clone $repo_url to $TOOLS_ROOT/$repo_name"
         return 0
     fi
     
@@ -655,6 +738,7 @@ clone_and_run_tool() {
     
     # Clone the repository
     if git clone --depth 1 "$repo_url" "$TOOLS_ROOT/$repo_name"; then
+        print_success "Cloned $repo_name to $TOOLS_ROOT/$repo_name"
         log "[+] Cloned $repo_name to $TOOLS_ROOT/$repo_name"
         
         # Create output directory for this tool
@@ -667,9 +751,11 @@ clone_and_run_tool() {
         elif [[ "$repo_name" == *"decrypt-winrm"* ]]; then
             run_decrypt_winrm_tool "$repo_name" "$tool_out"
         else
+            print_warning "No specific handler for $repo_name"
             log "[!] No specific handler for $repo_name"
         fi
     else
+        print_error "Failed to clone $repo_name"
         log_error "Failed to clone $repo_name"
         return 1
     fi
@@ -680,11 +766,12 @@ run_krbpa2john_tool() {
     local repo_name="$1"
     local tool_out="$2"
     
+    print_info "Running krbpa2john tool..."
     log "Running krbpa2john tool..."
     
     # Check if AS-REP candidates exist
     if [ ! -f "$BASE_OUT/kerberos/asrep_candidates.txt" ]; then
-        log "[!] No AS-REP candidates found. Run Kerberos extractors first."
+        print_warning "No AS-REP candidates found. Run Kerberos extractors first."
         return 1
     fi
     
@@ -695,28 +782,34 @@ run_krbpa2john_tool() {
     elif [ -f "$TOOLS_ROOT/$repo_name/krbpa2john.py" ]; then
         script_path="$TOOLS_ROOT/$repo_name/krbpa2john.py"
     else
+        print_error "krbpa2john.py not found in $TOOLS_ROOT/$repo_name"
         log_error "krbpa2john.py not found in $TOOLS_ROOT/$repo_name"
         return 1
     fi
     
     # Run the script
     local output_file="$tool_out/krbpa2john_output.txt"
+    print_running "Running: python3 \"$script_path\" \"$BASE_OUT/kerberos/asrep_candidates.txt\""
     log "Running: python3 \"$script_path\" \"$BASE_OUT/kerberos/asrep_candidates.txt\""
     
     if python3 "$script_path" "$BASE_OUT/kerberos/asrep_candidates.txt" > "$output_file" 2>> "$BASE_OUT/logs/errors.log"; then
         if [ -s "$output_file" ]; then
+            print_success "Saved -> $output_file"
             log "[+] Saved -> $output_file"
             
             # Also copy to kerberos directory for convenience
             cp "$output_file" "$BASE_OUT/kerberos/krbpa2john_output.txt"
+            print_success "Also saved -> $BASE_OUT/kerberos/krbpa2john_output.txt"
             log "[+] Also saved -> $BASE_OUT/kerberos/krbpa2john_output.txt"
             
             return 0
         else
+            print_warning "No output from krbpa2john.py"
             log "[!] No output from krbpa2john.py"
             return 1
         fi
     else
+        print_error "Failed to run krbpa2john.py"
         log_error "Failed to run krbpa2john.py"
         return 1
     fi
@@ -727,6 +820,7 @@ run_decrypt_winrm_tool() {
     local repo_name="$1"
     local tool_out="$2"
     
+    print_info "Running decrypt-winrm tool..."
     log "Running decrypt-winrm tool..."
     
     # Check if the script exists
@@ -734,21 +828,23 @@ run_decrypt_winrm_tool() {
     if [ -f "$TOOLS_ROOT/$repo_name/Decrypt-WinRM.ps1" ]; then
         script_path="$TOOLS_ROOT/$repo_name/Decrypt-WinRM.ps1"
     else
+        print_error "Decrypt-WinRM.ps1 not found in $TOOLS_ROOT/$repo_name"
         log_error "Decrypt-WinRM.ps1 not found in $TOOLS_ROOT/$repo_name"
         return 1
     fi
     
     # This is a PowerShell script, so we need to check if we're on Windows or have PowerShell available
     if ! command -v powershell >/dev/null 2>&1 && ! command -v pwsh >/dev/null 2>&1; then
+        print_error "PowerShell not available. Cannot run decrypt-winrm tool."
         log_error "PowerShell not available. Cannot run decrypt-winrm tool."
         return 1
     fi
     
     # Prompt user for required inputs
-    echo "Decrypt-WinRM requires the following inputs:"
-    echo "1. Path to the encrypted WinRM traffic file (PCAP)"
-    echo "2. Path to the server's certificate file (PEM format)"
-    echo "3. Path to the server's private key file (PEM format)"
+    echo -e "${YELLOW}Decrypt-WinRM requires the following inputs:${NC}"
+    echo -e "${YELLOW}1. Path to the encrypted WinRM traffic file (PCAP)${NC}"
+    echo -e "${YELLOW}2. Path to the server's certificate file (PEM format)${NC}"
+    echo -e "${YELLOW}3. Path to the server's private key file (PEM format)${NC}"
     echo
     
     local cert_file=""
@@ -759,12 +855,12 @@ run_decrypt_winrm_tool() {
     
     # Validate inputs
     if [ ! -f "$cert_file" ]; then
-        log_error "Certificate file not found: $cert_file"
+        print_error "Certificate file not found: $cert_file"
         return 1
     fi
     
     if [ ! -f "$key_file" ]; then
-        log_error "Private key file not found: $key_file"
+        print_error "Private key file not found: $key_file"
         return 1
     fi
     
@@ -772,32 +868,33 @@ run_decrypt_winrm_tool() {
     local output_file="$tool_out/decrypt_winrm_output.txt"
     local ps_command="& '$script_path' -PcapFile '$PCAP_FILE' -CertFile '$cert_file' -KeyFile '$key_file'"
     
+    print_running "Running: $ps_command"
     log "Running: $ps_command"
     
     if command -v powershell >/dev/null 2>&1; then
         if powershell -Command "$ps_command" > "$output_file" 2>> "$BASE_OUT/logs/errors.log"; then
             if [ -s "$output_file" ]; then
-                log "[+] Saved -> $output_file"
+                print_success "Saved -> $output_file"
                 return 0
             else
-                log "[!] No output from Decrypt-WinRM.ps1"
+                print_warning "No output from Decrypt-WinRM.ps1"
                 return 1
             fi
         else
-            log_error "Failed to run Decrypt-WinRM.ps1"
+            print_error "Failed to run Decrypt-WinRM.ps1"
             return 1
         fi
     elif command -v pwsh >/dev/null 2>&1; then
         if pwsh -Command "$ps_command" > "$output_file" 2>> "$BASE_OUT/logs/errors.log"; then
             if [ -s "$output_file" ]; then
-                log "[+] Saved -> $output_file"
+                print_success "Saved -> $output_file"
                 return 0
             else
-                log "[!] No output from Decrypt-WinRM.ps1"
+                print_warning "No output from Decrypt-WinRM.ps1"
                 return 1
             fi
         else
-            log_error "Failed to run Decrypt-WinRM.ps1"
+            print_error "Failed to run Decrypt-WinRM.ps1"
             return 1
         fi
     fi
@@ -825,7 +922,7 @@ handle_github_tools() {
                 ((i++))
             done
         else
-            echo "Invalid option, please try again."
+            echo -e "${RED}Invalid option, please try again.${NC}"
         fi
         
         echo
@@ -836,6 +933,7 @@ handle_github_tools() {
 
 # Function to generate summary report
 generate_summary() {
+    print_info "Generating summary report..."
     log "Generating summary report..."
     
     local summary_file="$BASE_OUT/SUMMARY.txt"
@@ -942,10 +1040,12 @@ generate_summary() {
         
     } > "$summary_file"
     
+    print_success "Saved -> $summary_file"
     log "[+] Saved -> $summary_file"
     
     # Create JSON summary if requested
     if [ "$JSON_REPORT" = true ]; then
+        print_info "Generating JSON summary report..."
         log "Generating JSON summary report..."
         
         # Start JSON structure
@@ -1107,6 +1207,7 @@ generate_summary() {
             echo "}"
         } > "$json_file"
         
+        print_success "Saved -> $json_file"
         log "[+] Saved -> $json_file"
     fi
     
@@ -1117,6 +1218,9 @@ generate_summary() {
 
 # Main program
 main() {
+    # Print header
+    print_header
+    
     # Parse command line arguments
     parse_args "$@"
     
@@ -1124,12 +1228,13 @@ main() {
     check_dependencies
     
     # Confirm PCAP path
-    echo "PCAP file: $PCAP_FILE"
-    echo "Output directory: $BASE_OUT"
+    echo -e "${CYAN}PCAP file:${NC} ${BOLD}$PCAP_FILE${NC}"
+    echo -e "${CYAN}Output directory:${NC} ${BOLD}$BASE_OUT${NC}"
     echo
     read -p "Continue with these settings? [Y/n] " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Nn]$ ]]; then
+        print_info "User cancelled operation"
         log "User cancelled operation"
         exit 0
     fi
@@ -1156,11 +1261,12 @@ main() {
                 read -r
                 ;;
             5) 
+                print_info "Exiting..."
                 log "Exiting..."
                 exit 0
                 ;;
             *) 
-                echo "Invalid option, please try again."
+                echo -e "${RED}Invalid option, please try again.${NC}"
                 ;;
         esac
     done
