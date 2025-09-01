@@ -13,7 +13,8 @@ A robust, production-quality Bash tool that automates tshark extractions from PC
 - Comprehensive summary reports (text and JSON)
 - Cross-platform support (Linux, macOS, and Windows via WSL)
 - Built-in dependency checker and installer
-
+### Screenshot
+![room-img3.png](https://github.com/Neo-virex/Neo-virex.github.io/blob/main/images/blogs/pcap-auto-extractor/room-img3.png)
 ## Requirements
 
 ### Required Dependencies
